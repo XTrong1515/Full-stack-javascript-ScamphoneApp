@@ -2,6 +2,7 @@ import asyncHandler from 'express-async-handler';
 import crypto from 'crypto';
 import querystring from 'qs';
 import Order from '../Models/OrderModel.js';
+import axios from 'axios';
 
 // VNPay configuration
 const vnpayConfig = {
@@ -154,7 +155,7 @@ const vnpayReturn = asyncHandler(async (req, res) => {
   const hmac = crypto.createHmac('sha512', vnpayConfig.vnp_HashSecret);
   const signed = hmac.update(Buffer.from(signData, 'utf-8')).digest('hex');
 
-  if (secureHash === signed) {
+  if (secureHash.toUpperCase() === signed.toUpperCase()) {
     const rspCode = vnp_Params['vnp_ResponseCode'];
     const txnRef = vnp_Params['vnp_TxnRef']; // VNPay transaction reference
     const amount = parseInt(vnp_Params['vnp_Amount']) / 100;
@@ -225,6 +226,63 @@ const vnpayReturn = asyncHandler(async (req, res) => {
   }
 });
 
+// @desc    Create MoMo payment URL
+// @route   POST /api/v1/payment/momo
+// @access  Private
+const createMomoPayment = asyncHandler(async (req, res) => {
+    const { orderId, amount } = req.body;
+    if (!orderId || !amount) {
+        res.status(400);
+        throw new Error('Missing required fields: orderId and amount');
+    }
+    const partnerCode = process.env.MOMO_PARTNER_CODE;
+    const accessKey = process.env.MOMO_ACCESS_KEY;
+    const secretkey = process.env.MOMO_SECRET_KEY;
+    const requestId = partnerCode + new Date().getTime();
+    const momoOrderId = requestId;
+    const orderInfo = `Thanh toan don hang ${orderId}`;
+    const redirectUrl = `${process.env.CLIENT_URL}/payment-result`;
+    const ipnUrl = `${process.env.API_URL}/api/v1/payment/momo-ipn`;
+    const requestType = 'captureWallet';
+    const extraData = '';
+
+    const rawSignature = `accessKey=${accessKey}&amount=${amount}&extraData=${extraData}&ipnUrl=${ipnUrl}&orderId=${momoOrderId}&orderInfo=${orderInfo}&partnerCode=${partnerCode}&redirectUrl=${redirectUrl}&requestId=${requestId}&requestType=${requestType}`;
+
+    const signature = crypto.createHmac('sha256', secretkey)
+        .update(rawSignature)
+        .digest('hex');
+
+    const requestBody = JSON.stringify({
+        partnerCode,
+        accessKey,
+        requestId,
+        amount: amount.toString(),
+        orderId: momoOrderId,
+        orderInfo,
+        redirectUrl,
+        ipnUrl,
+        extraData,
+        requestType,
+        signature,
+        lang: 'en'
+    });
+
+    try {
+        const { data } = await axios.post(process.env.MOMO_ENDPOINT, requestBody, {
+            headers: {
+                'Content-Type': 'application/json',
+                'Content-Length': Buffer.byteLength(requestBody)
+            }
+        });
+
+        res.json({ payUrl: data.payUrl });
+    } catch (error) {
+        res.status(500);
+        throw new Error('MoMo payment creation failed');
+    }
+});
+
+
 // Helper functions
 function sortObject(obj) {
   const sorted = {};
@@ -248,5 +306,6 @@ function formatDate(date) {
 export {
   createVNPayPayment,
   vnpayIPN,
-  vnpayReturn
+  vnpayReturn,
+  createMomoPayment,
 };

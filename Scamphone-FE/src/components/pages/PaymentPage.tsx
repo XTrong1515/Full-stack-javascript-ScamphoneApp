@@ -19,6 +19,7 @@ import { Button } from "../ui/button";
 import { orderService } from "../../services/orderService";
 import { useCartStore } from "../../stores/useCartStore";
 import { VIETQR_CONFIG } from "../../config/vietqr";
+import { paymentService } from "../../services/paymentService";
 
 interface PaymentPageProps {
   onPageChange: (page: string, data?: any) => void;
@@ -31,7 +32,7 @@ interface PaymentPageProps {
 
 export function PaymentPage({ onPageChange, checkoutData }: PaymentPageProps) {
   const { appliedDiscount, clearCart } = useCartStore();
-  const [selectedMethod, setSelectedMethod] = useState<'COD' | 'BANK_TRANSFER'>('COD');
+  const [selectedMethod, setSelectedMethod] = useState<'COD' | 'BANK_TRANSFER' | 'MOMO'>('COD');
   const [loading, setLoading] = useState(false);
   const [showQR, setShowQR] = useState(false);
   const [qrCodeImage, setQrCodeImage] = useState<string>('');
@@ -124,7 +125,6 @@ export function PaymentPage({ onPageChange, checkoutData }: PaymentPageProps) {
   const handlePlaceOrder = async () => {
     setLoading(true);
     try {
-      // Create order first regardless of payment method
       const order = await createOrder();
       setCurrentOrderId(order._id);
 
@@ -132,9 +132,13 @@ export function PaymentPage({ onPageChange, checkoutData }: PaymentPageProps) {
         const orderInfo = `THANHTOAN ${order._id.slice(-8).toUpperCase()}`;
         await generateVietQR(totalPrice, orderInfo);
         setShowQR(true);
-        // User will be shown the QR code and a confirmation button
-      } else { // COD
-        // For COD, we can redirect immediately after order creation
+      } else if (selectedMethod === 'MOMO') {
+        const res = await paymentService.createMomoPayment(order._id, totalPrice);
+        if (res.payUrl) {
+          window.location.href = res.payUrl;
+        }
+      }
+      else { // COD
         clearCart();
         localStorage.removeItem('cart');
         localStorage.removeItem('shippingInfo');
@@ -395,6 +399,42 @@ export function PaymentPage({ onPageChange, checkoutData }: PaymentPageProps) {
                           💡 <strong>Hướng dẫn:</strong> Quét mã QR, sau khi chuyển khoản nhấn "Xác nhận đã chuyển khoản".
                         </p>
                       </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </Card>
+
+            {/* MoMo Option */}
+            <Card
+              className={`p-6 cursor-pointer transition-all ${
+                selectedMethod === 'MOMO'
+                  ? 'border-2 border-pink-600 bg-pink-50'
+                  : 'border hover:border-gray-300'
+              }`}
+              onClick={() => setSelectedMethod('MOMO')}
+            >
+              <div className="flex items-start gap-4">
+                <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center mt-1 ${
+                  selectedMethod === 'MOMO' ? 'border-pink-600 bg-pink-600' : 'border-gray-300'
+                }`}>
+                  {selectedMethod === 'MOMO' && <CheckCircle className="w-4 h-4 text-white" />}
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-10 h-10 bg-pink-100 rounded-full flex items-center justify-center">
+                      <CreditCard className="w-5 h-5 text-pink-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-gray-900">Thanh toán bằng MoMo</h3>
+                      <p className="text-sm text-gray-600">Sử dụng ví điện tử MoMo</p>
+                    </div>
+                  </div>
+                   {selectedMethod === 'MOMO' && (
+                    <div className="mt-3 p-3 bg-white rounded-lg border border-pink-200">
+                      <p className="text-sm text-gray-700">
+                        ✓ Bạn sẽ được chuyển hướng đến MoMo để hoàn tất thanh toán.
+                      </p>
                     </div>
                   )}
                 </div>

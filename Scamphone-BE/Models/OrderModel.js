@@ -56,7 +56,7 @@ const orderSchema = new mongoose.Schema({
     shippingAddress: { type: shippingAddressSchema, required: true },
     paymentMethod: { 
         type: String, 
-        enum: ["COD", "BANK_TRANSFER", "Cash"],
+        enum: ["COD", "BANK_TRANSFER", "Cash", "MOMO"],
         default: "COD"
     },
     // Thông tin mã giảm giá
