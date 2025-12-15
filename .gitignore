@@ -56,7 +56,6 @@ Thumbs.db
 
 # Prompt and notes files
 *.txt
-!requirements.txt
 !README.txt
 
 # Local/temp files
